@@ -25,6 +25,10 @@ class MongoDBGraphiteMonitor(object):
             help='host name for graphite server.')
         parser.add_argument('-graphitePort', required=True,
             help='port garphite is listening on.')
+        parser.add_argument('-username', default=None,
+            help='mongodb login username')
+        parser.add_argument('-password', default=None,
+            help='mongodb login password')
         return parser.parse_args()
 
     def _uploadToCarbon(self, metrics):
@@ -105,7 +109,9 @@ class MongoDBGraphiteMonitor(object):
 
         self._mongoHost = self._args.host.lower()
         self._mongoPort = 27017
-        self._connection = Connection(self._mongoHost, self._mongoPort)
+        self._connection = Connection(host=self._mongoHost, port=self._mongoPort)
+        if self._args.username:
+            self._connection.admin.authenticate(self._args.username, self._args.password)
 
         self._metricName = self._args.prefix + '.' + self._args.service + '.mongodb.'
 
