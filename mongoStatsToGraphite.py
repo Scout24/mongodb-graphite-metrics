@@ -111,7 +111,8 @@ class MongoDBGraphiteMonitor(object):
         self._mongoPort = 27017
         self._connection = Connection(host=self._mongoHost, port=self._mongoPort)
         if self._args.username:
-            self._connection.admin.authenticate(self._args.username, self._args.password)
+            if not self._connection.admin.authenticate(self._args.username, self._args.password):
+                raise Exception("Could not authenticate at mongodb")
 
         self._metricName = self._args.prefix + '.' + self._args.service + '.mongodb.'
 
