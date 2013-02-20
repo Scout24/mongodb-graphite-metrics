@@ -77,7 +77,9 @@ class MongoDBGraphiteMonitor(object):
         serverMetrics = dict()
         serverStatus = self._connection.admin.command("serverStatus")
 
-        serverMetrics['lock.ratio'] = '%.5f' % serverStatus['globalLock']['ratio']
+        if 'ratio' in serverStatus['globalLock']:
+            serverMetrics['lock.ratio'] = '%.5f' % serverStatus['globalLock']['ratio']
+
         serverMetrics['lock.queue.total'] = serverStatus['globalLock']['currentQueue']['total']
         serverMetrics['lock.queue.readers'] = serverStatus['globalLock']['currentQueue']['readers']
         serverMetrics['lock.queue.writers'] = serverStatus['globalLock']['currentQueue']['writers']
