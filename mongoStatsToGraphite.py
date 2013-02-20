@@ -4,30 +4,55 @@ import sys
 from socket import socket
 
 import argparse
+import os
 from pymongo import Connection
-
+import yaml
 
 class MongoDBGraphiteMonitor(object):
 
+    CONFIG_PATH = '/etc/mongodb-monitoring.conf'
+
     def __init__(self):
         self._thisHost = commands.getoutput('hostname')
-        self._args = self._parseCommandLineArgs()
+        self._args = self._parseCommandLineArgs(self._setDefaults(self._parseConfigFile()))
 
-    def _parseCommandLineArgs(self):
+    def _parseConfigFile(self):
+        if os.path.exists(self.CONFIG_PATH):
+            configStream = open(self.CONFIG_PATH, 'r')
+            try:
+                return yaml.load(configStream)
+            finally:
+                configStream.close()
+
+        return dict()
+
+    def _setDefaults(self, loadedConfig):
+        if not 'host' in loadedConfig:
+            loadedConfig['host'] = self._thisHost
+        if not 'prefix' in loadedConfig:
+            loadedConfig['prefix'] = 'DEV'
+        if not 'service' in loadedConfig:
+            loadedConfig['service'] = 'unspecified'
+        if not 'graphitePort' in loadedConfig:
+            loadedConfig['graphitePort'] = 2003
+
+        return loadedConfig
+
+    def _parseCommandLineArgs(self, defaultConfig):
         parser = argparse.ArgumentParser(description='Creates graphite metrics for a single mongodb instance from administation commands.')
-        parser.add_argument('-host', default=self._thisHost,
+        parser.add_argument('-host', default=defaultConfig['host'],
             help='host name of mongodb to create metrics from.')
-        parser.add_argument('-prefix', default='DEV',
+        parser.add_argument('-prefix', default=defaultConfig['prefix'],
             help='prefix for all metrics.')
-        parser.add_argument('-service', default='unspecified', required=True,
+        parser.add_argument('-service', default=defaultConfig['service'],
             help='service name the metrics should appear under.')
-        parser.add_argument('-graphiteHost', required=True,
+        parser.add_argument('-graphiteHost', default=defaultConfig['graphiteHost'] ,required=not 'graphiteHost' in defaultConfig,
             help='host name for graphite server.')
-        parser.add_argument('-graphitePort', default='2003',
+        parser.add_argument('-graphitePort', default=defaultConfig['graphitePort'],
             help='port garphite is listening on.')
-        parser.add_argument('-username', default=None,
+        parser.add_argument('-username', default=defaultConfig['username'] if 'username' in defaultConfig else None,
             help='mongodb login username')
-        parser.add_argument('-password', default=None,
+        parser.add_argument('-password', default=defaultConfig['password'] if 'password' in defaultConfig else None,
             help='mongodb login password')
         return parser.parse_args()
 
