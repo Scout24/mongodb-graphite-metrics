@@ -23,7 +23,7 @@ class MongoDBGraphiteMonitor(object):
             help='service name the metrics should appear under.')
         parser.add_argument('-graphiteHost', required=True,
             help='host name for graphite server.')
-        parser.add_argument('-graphitePort', required=True,
+        parser.add_argument('-graphitePort', default='2003',
             help='port garphite is listening on.')
         parser.add_argument('-username', default=None,
             help='mongodb login username')
