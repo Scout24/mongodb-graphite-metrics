@@ -18,11 +18,8 @@ class MongoDBGraphiteMonitor(object):
 
     def _parseConfigFile(self):
         if os.path.exists(self.CONFIG_PATH):
-            configStream = open(self.CONFIG_PATH, 'r')
-            try:
+            with open(self.CONFIG_PATH, 'r') as configStream:
                 return yaml.load(configStream)
-            finally:
-                configStream.close()
 
         return dict()
 
