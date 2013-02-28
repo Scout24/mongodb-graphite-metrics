@@ -133,7 +133,7 @@ class MongoDBGraphiteMonitor(object):
 
         self._mongoHost = self._args.host.lower()
         self._mongoPort = 27017
-        self._connection = Connection(host=self._mongoHost, port=self._mongoPort)
+        self._connection = Connection(host=self._mongoHost, port=self._mongoPort, network_timeout=10)
         if self._args.username:
             if not self._connection.admin.authenticate(self._args.username, self._args.password):
                 raise Exception("Could not authenticate at mongodb")
