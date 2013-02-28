@@ -32,6 +32,8 @@ class MongoDBGraphiteMonitor(object):
             loadedConfig['service'] = 'unspecified'
         if not 'graphitePort' in loadedConfig:
             loadedConfig['graphitePort'] = 2003
+        if not 'database' in loadedConfig:
+            loadedConfig['database'] = None
 
         return loadedConfig
 
@@ -43,7 +45,9 @@ class MongoDBGraphiteMonitor(object):
             help='prefix for all metrics.')
         parser.add_argument('-service', default=defaultConfig['service'],
             help='service name the metrics should appear under.')
-        parser.add_argument('-graphiteHost', default=defaultConfig['graphiteHost'] ,required=not 'graphiteHost' in defaultConfig,
+        parser.add_argument('-database', default=defaultConfig['database'],
+            help='database name for additional mertric of this database')
+        parser.add_argument('-graphiteHost', default=defaultConfig['graphiteHost'] if 'graphiteHost' in defaultConfig else None, required=not 'graphiteHost' in defaultConfig,
             help='host name for graphite server.')
         parser.add_argument('-graphitePort', default=defaultConfig['graphitePort'],
             help='port garphite is listening on.')
@@ -126,6 +130,17 @@ class MongoDBGraphiteMonitor(object):
 
         return serverMetrics
 
+    def _gatherDatabaseSpecificMetrics(self):
+        dbMetrics = dict()
+
+        if self._args.database is not None:
+            dbStats = self._connection[self._args.database].command('dbstats')
+
+            for stat in dbStats:
+                dbMetrics['db.' + self._args.database + '.' + stat] = dbStats[stat]
+
+        return dbMetrics
+
 
     def execute(self):
         self._carbonHost = self._args.graphiteHost
@@ -143,6 +158,7 @@ class MongoDBGraphiteMonitor(object):
         metrics = dict()
         metrics.update(self._gatherReplicationMetrics())
         metrics.update(self._gatherServerStatusMetrics())
+        metrics.update(self._gatherDatabaseSpecificMetrics())
 
         self._uploadToCarbon(metrics)
 
