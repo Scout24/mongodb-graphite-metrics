@@ -113,9 +113,14 @@ class MongoDBGraphiteMonitor(object):
         serverMetrics['connections.current'] = serverStatus['connections']['current']
         serverMetrics['connections.available'] = serverStatus['connections']['available']
 
-        serverMetrics['indexes.missRatio'] = '%.5f' % serverStatus['indexCounters']['btree']['missRatio']
-        serverMetrics['indexes.hits'] = serverStatus['indexCounters']['btree']['hits']
-        serverMetrics['indexes.misses'] = serverStatus['indexCounters']['btree']['misses']
+        if 'btree' in serverStatus['indexCounters']:
+                serverMetrics['indexes.missRatio'] = '%.5f' % serverStatus['indexCounters']['btree']['missRatio']
+                serverMetrics['indexes.hits'] = serverStatus['indexCounters']['btree']['hits']
+                serverMetrics['indexes.misses'] = serverStatus['indexCounters']['btree']['misses']
+        else:
+                serverMetrics['indexes.missRatio'] = '%.5f' % serverStatus['indexCounters']['missRatio']
+                serverMetrics['indexes.hits'] = serverStatus['indexCounters']['hits']
+                serverMetrics['indexes.misses'] = serverStatus['indexCounters']['misses']
 
         serverMetrics['cursors.open'] = serverStatus['cursors']['totalOpen']
         serverMetrics['cursors.timedOut'] = serverStatus['cursors']['timedOut']
