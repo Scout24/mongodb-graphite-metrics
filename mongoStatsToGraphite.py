@@ -142,7 +142,8 @@ class MongoDBGraphiteMonitor(object):
             dbStats = self._connection[self._args.database].command('dbstats')
 
             for stat in dbStats:
-                dbMetrics['db.' + self._args.database + '.' + stat] = dbStats[stat]
+                if isinstance(dbStats[stat], (int, long, float)):
+                        dbMetrics['db.' + self._args.database + '.' + stat] = dbStats[stat]
 
         return dbMetrics
 
