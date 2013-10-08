@@ -81,7 +81,6 @@ class MongoDBGraphiteMonitor(object):
       print "Couldn't connect to %(server)s on port %(port)d, is carbon-agent.py running?" % {
         'server': self._carbonHost, 'port': self._carbonPort}
       sys.exit(1)
-      #print message
     sock.sendall(message)
 
   def _calculateLagTimes(self, replStatus, primaryDate):
@@ -146,7 +145,7 @@ class MongoDBGraphiteMonitor(object):
 
   def _gatherDbStats(self, databaseName):
     dbStatsOfCurrentDb = dict()
-    print databaseName
+
     if databaseName is not None:
       dbStats = self._connection[databaseName].command('dbstats')
 
@@ -159,11 +158,9 @@ class MongoDBGraphiteMonitor(object):
 
   def _gatherDatabaseSpecificMetrics(self):
     dbMetrics = dict()
-    print self._args.database
     for database in self._args.database:
       dbMetrics.update(self._gatherDbStats(database))
 
-    print  dbMetrics
     return dbMetrics
 
 
