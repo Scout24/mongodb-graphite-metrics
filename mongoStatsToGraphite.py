@@ -112,6 +112,8 @@ class MongoDBGraphiteMonitor(object):
 
     if 'ratio' in serverStatus['globalLock']:
       serverMetrics['lock.ratio'] = '%.5f' % serverStatus['globalLock']['ratio']
+    else:
+      serverMetrics['lock.ratio'] = '%.5f' % (float(serverStatus['globalLock']['lockTime']) / float(serverStatus['globalLock']['totalTime']) * 100)
 
     serverMetrics['lock.queue.total'] = serverStatus['globalLock']['currentQueue']['total']
     serverMetrics['lock.queue.readers'] = serverStatus['globalLock']['currentQueue']['readers']
