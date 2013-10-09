@@ -139,8 +139,12 @@ class MongoDBGraphiteMonitor(object):
     serverMetrics['mem.mapped'] = serverStatus['mem']['mapped']
     serverMetrics['mem.pageFaults'] = serverStatus['extra_info']['page_faults']
 
-    serverMetrics['asserts.warnings'] = serverStatus['asserts']['warning']
-    serverMetrics['asserts.errors'] = serverStatus['asserts']['msg']
+    for assertType, value in serverStatus['asserts'].iteritems():
+      serverMetrics['asserts.' + assertType ] = value
+
+    for assertType, value in serverStatus['dur'].iteritems():
+      if isinstance(value, (int, long, float)):
+         serverMetrics['dur.' + assertType ] = value
 
     return serverMetrics
 
@@ -151,9 +155,9 @@ class MongoDBGraphiteMonitor(object):
     if databaseName is not None:
       dbStats = self._connection[databaseName].command('dbstats')
 
-      for stat in dbStats:
-        if isinstance(dbStats[stat], (int, long, float)):
-          dbStatsOfCurrentDb['db.' + databaseName + '.' + stat] = dbStats[stat]
+      for stat, value in dbStats.iteritems():
+        if isinstance(value, (int, long, float)):
+          dbStatsOfCurrentDb['db.' + databaseName + '.' + stat] = value
 
     return dbStatsOfCurrentDb
 
