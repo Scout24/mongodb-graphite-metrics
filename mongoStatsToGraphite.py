@@ -5,6 +5,7 @@ from socket import socket
 
 import argparse
 import os
+import pymongo
 from pymongo import Connection
 import yaml
 
@@ -169,6 +170,48 @@ class MongoDBGraphiteMonitor(object):
 
     return dbMetrics
 
+  def _set_read_preference(self, db):
+    if pymongo.version >= "2.1":
+      db.read_preference = pymongo.ReadPreference.SECONDARY
+
+  def _gatherOpLogStats(self):
+    oplogStats = dict()
+    try:
+      db = self._connection['local']
+      if db.system.namespaces.find_one({"name":"local.oplog.rs"}):
+        oplog = "oplog.rs"
+      elif db.system.namespaces.find_one({"name":"local.oplog.$main"}):
+        oplog = "oplog.$main"
+      else:
+        return
+
+      self._set_read_preference(self._connection['admin'])
+      data = self._connection['local'].command(pymongo.son_manipulator.SON([('collstats',oplog)]))
+
+
+      oplog_size = data['size']
+      oplog_storage_size = data['storageSize']
+      oplog_used_storage = int(float(oplog_size) / oplog_storage_size * 100 + 1)
+      oplog_collection = self._connection['local'][oplog]
+      first_item = oplog_collection.find().sort("$natural", pymongo.ASCENDING).limit(1)[0]['ts']
+      last_item = oplog_collection.find().sort("$natural", pymongo.DESCENDING).limit(1)[0]['ts']
+      time_in_oplog = (last_item.as_datetime() - first_item.as_datetime())
+
+      try: #work starting from python2.7
+        hours_in_oplog= time_in_oplog.total_seconds() / 60 / 60
+      except:
+        hours_in_oplog= float(time_in_oplog.seconds + time_in_oplog.days * 24 * 3600) / 60 / 60
+
+      approx_hours_in_oplog = hours_in_oplog * 100 / oplog_used_storage
+
+      oplogStats['oplog.size'] = oplog_size
+      oplogStats['oplog.storageSize'] = oplog_storage_size
+      oplogStats['oplog.usedStoragePercentage'] = oplog_used_storage
+      oplogStats['oplog.hoursInOplog'] = hours_in_oplog
+      oplogStats['oplog.approxHoursInOplog'] = approx_hours_in_oplog
+    finally:
+      return oplogStats
+
 
   def execute(self):
     self._carbonHost = self._args.graphiteHost
@@ -187,6 +230,7 @@ class MongoDBGraphiteMonitor(object):
     metrics.update(self._gatherReplicationMetrics())
     metrics.update(self._gatherServerStatusMetrics())
     metrics.update(self._gatherDatabaseSpecificMetrics())
+    metrics.update(self._gatherOpLogStats());
 
     self._uploadToCarbon(metrics)
 
