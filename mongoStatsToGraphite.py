@@ -73,6 +73,7 @@ class MongoDBGraphiteMonitor(object):
       lines.append(self._metricName + name + ' %s %d' % (value, now))
 
     message = '\n'.join(lines) + '\n'
+    # print message
 
     sock = socket()
     try:
@@ -107,8 +108,15 @@ class MongoDBGraphiteMonitor(object):
     return replicaMetrics
 
   def _gatherServerStatusMetrics(self):
+    def rate (value1, value2, delta_t):
+      return (value2-value1)/float(delta_t)
+      
     serverMetrics = dict()
     serverStatus = self._connection.admin.command("serverStatus")
+    
+    deltaInSeconds = 2
+    time.sleep(deltaInSeconds)
+    serverStatus1 = self._connection.admin.command("serverStatus") 
 
     if 'ratio' in serverStatus['globalLock']:
       serverMetrics['lock.ratio'] = '%.5f' % serverStatus['globalLock']['ratio']
@@ -138,6 +146,18 @@ class MongoDBGraphiteMonitor(object):
     serverMetrics['mem.virtualMb'] = serverStatus['mem']['virtual']
     serverMetrics['mem.mapped'] = serverStatus['mem']['mapped']
     serverMetrics['mem.pageFaults'] = serverStatus['extra_info']['page_faults']
+        
+    serverMetrics['flushing.lastMs'] = serverStatus['backgroundFlushing']['last_ms']
+
+    print "Serverstatus#insert: %f" % rate(serverStatus['opcounters']['insert'], serverStatus1['opcounters']['insert'],deltaInSeconds)
+    print "Serverstatus#query: %f" % rate(serverStatus['opcounters']['query'], serverStatus1['opcounters']['query'], deltaInSeconds)
+    print "Serverstatus#update: %f" % rate(serverStatus['opcounters']['update'], serverStatus1['opcounters']['update'], deltaInSeconds)
+    print "Serverstatus#delete: %f" % rate(serverStatus['opcounters']['delete'], serverStatus1['opcounters']['delete'],deltaInSeconds)
+
+    print "Serverstatus#page_faults: %f" % rate(serverStatus['extra_info']['page_faults'], serverStatus1['extra_info']['page_faults'], deltaInSeconds)
+
+    print "backgroundFlushing#last_ms: %f" % serverStatus['backgroundFlushing']['last_ms']
+
 
     for assertType, value in serverStatus['asserts'].iteritems():
       serverMetrics['asserts.' + assertType ] = value
