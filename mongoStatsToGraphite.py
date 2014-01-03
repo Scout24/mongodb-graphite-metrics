@@ -85,27 +85,38 @@ class MongoDBGraphiteMonitor(object):
       sys.exit(1)
     sock.sendall(message)
 
+  def _calculateLagTime(self, primaryDate, hostDate):
+    lag = primaryDate - hostDate
+    return '%.0f' % (
+      (lag.microseconds + (lag.seconds + lag.days * 24 * 3600) * 10 ** 6) / 10 ** 6)
+
   def _calculateLagTimes(self, replStatus, primaryDate):
     lags = dict()
     for hostState in replStatus['members']:
-      lag = primaryDate - hostState['optimeDate']
       hostName = hostState['name'].lower().split('.')[0]
-      lags[hostName + ".lag_seconds"] = '%.0f' % (
-        (lag.microseconds + (lag.seconds + lag.days * 24 * 3600) * 10 ** 6) / 10 ** 6)
+      lags[hostName + ".lag_seconds"] = self._calculateLagTime(primaryDate, hostState['optimeDate'])
     return lags
 
   def _gatherReplicationMetrics(self):
     replicaMetrics = dict()
     replStatus = self._connection.admin.command("replSetGetStatus")
 
+    primaryOptime = 0;
     for hostState in replStatus['members']:
       if hostState['stateStr'] == 'PRIMARY' and hostState['name'].lower().startswith(self._mongoHost):
         lags = self._calculateLagTimes(replStatus, hostState['optimeDate'])
         replicaMetrics.update(lags)
+      if hostState['stateStr'] == 'PRIMARY':
+         primaryOptime = hostState['optimeDate'];
       if hostState['name'].lower().startswith(self._mongoHost):
+        thisOptime = hostState['optimeDate'];
         thisHostsState = hostState
 
     replicaMetrics['state'] = thisHostsState['state']
+
+    # set lag_seconds to 100 if no primary was found
+    lag_seconds = self._calculateLagTime(primaryOptime, thisOptime) if primaryOptime != 0 else '100'
+    replicaMetrics['replication.lag_seconds'] = lag_seconds
     return replicaMetrics
 
   def _gatherServerStatusMetrics(self):
