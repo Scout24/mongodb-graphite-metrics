@@ -74,7 +74,6 @@ class MongoDBGraphiteMonitor(object):
       lines.append(self._metricName + name + ' %s %d' % (value, now))
 
     message = '\n'.join(lines) + '\n'
-    # print message
 
     sock = socket()
     try:
@@ -119,16 +118,9 @@ class MongoDBGraphiteMonitor(object):
     replicaMetrics['replication.lag_seconds'] = lag_seconds
     return replicaMetrics
 
-  def _gatherServerStatusMetrics(self):
-    def rate (value1, value2, delta_t):
-      return (value2-value1)/float(delta_t)
-      
+  def _gatherServerStatusMetrics(self):      
     serverMetrics = dict()
     serverStatus = self._connection.admin.command("serverStatus")
-    
-    deltaInSeconds = 2
-    time.sleep(deltaInSeconds)
-    serverStatus1 = self._connection.admin.command("serverStatus") 
 
     if 'ratio' in serverStatus['globalLock']:
       serverMetrics['lock.ratio'] = '%.5f' % serverStatus['globalLock']['ratio']
@@ -161,16 +153,6 @@ class MongoDBGraphiteMonitor(object):
         
     serverMetrics['flushing.lastMs'] = serverStatus['backgroundFlushing']['last_ms']
 
-    print "Serverstatus#insert: %f" % rate(serverStatus['opcounters']['insert'], serverStatus1['opcounters']['insert'],deltaInSeconds)
-    print "Serverstatus#query: %f" % rate(serverStatus['opcounters']['query'], serverStatus1['opcounters']['query'], deltaInSeconds)
-    print "Serverstatus#update: %f" % rate(serverStatus['opcounters']['update'], serverStatus1['opcounters']['update'], deltaInSeconds)
-    print "Serverstatus#delete: %f" % rate(serverStatus['opcounters']['delete'], serverStatus1['opcounters']['delete'],deltaInSeconds)
-
-    print "Serverstatus#page_faults: %f" % rate(serverStatus['extra_info']['page_faults'], serverStatus1['extra_info']['page_faults'], deltaInSeconds)
-
-    print "backgroundFlushing#last_ms: %f" % serverStatus['backgroundFlushing']['last_ms']
-
-
     for assertType, value in serverStatus['asserts'].iteritems():
       serverMetrics['asserts.' + assertType ] = value
 
@@ -179,6 +161,51 @@ class MongoDBGraphiteMonitor(object):
          serverMetrics['dur.' + assertType ] = value
 
     return serverMetrics
+
+  def _gatherQueryPerformance(self):
+    def query_rate(current_counter_value, now, last_count_data):
+      def rate(count2, count1, t2, t1):
+        return float(count2 - count1) / float(t2 - t1)
+
+      counts_per_second = 0
+      try:
+        counts_per_second = rate(current_counter_value, last_count_data['data'][query_type]['count'],
+                          now, last_count_data['data'][query_type]['ts'])
+      except KeyError:
+        # since it is the first run
+        pass
+      except TypeError:
+        # since it is the first
+        pass
+      return counts_per_second
+    
+
+    query_performance_metrics = dict()
+    
+    try:
+      serverStatus = self._connection.admin.command("serverStatus")
+      now = int(time.time())
+
+      db = self._connection.local
+      self._set_read_preference(db)
+      
+      for query_type in 'insert', 'query', 'update', 'delete':
+        current_counter_value = serverStatus['opcounters'][query_type]
+
+        last_count = db.nagios_check.find_one({'check': 'query_counts'})        
+        if last_count:
+          counts_per_second = query_rate (current_counter_value, now, last_count)
+          db.nagios_check.update({u'_id': last_count['_id']},
+                                 {'$set': {"data.%s" % query_type: {'count': current_counter_value, 'ts': now}}}, upsert=True)
+        else:
+          counts_per_second = 0
+          db.nagios_check.insert({'check': 'query_counts', 'data': {query_type: {'count': current_counter_value, 'ts': now}}})
+        
+        query_performance_metrics["opcounters.%s.perSeconds" % query_type]=counts_per_second
+    except Exception, e:
+      print "Couldn't retrieve/write query performance data:", e 
+
+    return query_performance_metrics
 
 
   def _gatherDbStats(self, databaseName):
@@ -244,13 +271,20 @@ class MongoDBGraphiteMonitor(object):
       return oplogStats
 
 
+  def _connection_to (self, host, port):
+    if pymongo.version >= "2.3":
+      con = pymongo.MongoClient(host, port)
+    else:
+      con = Connection(host=host, port=port, network_timeout=10)
+    return con
+    
   def execute(self):
     self._carbonHost = self._args.graphiteHost
     self._carbonPort = int(self._args.graphitePort)
 
     self._mongoHost = self._args.host.lower()
     self._mongoPort = 27017
-    self._connection = Connection(host=self._mongoHost, port=self._mongoPort, network_timeout=10)
+    self._connection = self._connection_to (self._mongoHost, self._mongoPort)
     if self._args.username:
       if not self._connection.admin.authenticate(self._args.username, self._args.password):
         raise Exception("Could not authenticate at mongodb")
@@ -261,7 +295,10 @@ class MongoDBGraphiteMonitor(object):
     metrics.update(self._gatherReplicationMetrics())
     metrics.update(self._gatherServerStatusMetrics())
     metrics.update(self._gatherDatabaseSpecificMetrics())
-    metrics.update(self._gatherOpLogStats());
+    metrics.update(self._gatherOpLogStats())
+    metrics.update(self._gatherQueryPerformance())
+    
+    # print (metrics)
 
     self._uploadToCarbon(metrics)
 
