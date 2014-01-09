@@ -86,8 +86,9 @@ class MongoDBGraphiteMonitor(object):
 
   def _calculateLagTime(self, primaryDate, hostDate):
     lag = primaryDate - hostDate
-    return '%.0f' % (
-      (lag.microseconds + (lag.seconds + lag.days * 24 * 3600) * 10 ** 6) / 10 ** 6)
+    seconds = (lag.microseconds + (lag.seconds + lag.days * 24 * 3600) * 10 ** 6) / 10 ** 6
+    seconds = max(seconds, 0)
+    return '%.0f' % seconds
 
   def _calculateLagTimes(self, replStatus, primaryDate):
     lags = dict()
