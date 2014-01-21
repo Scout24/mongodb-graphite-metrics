@@ -11,7 +11,7 @@ import yaml
 
 
 class MongoDBGraphiteMonitor(object):
-  CONFIG_PATH = os.environ['MONGO_MONITORING_CONFIG_FILE'] if 'MONGO_MONITORING_CONFIG_FILE' in os.environ else '/etc/mongodb-monitoring.conf'
+  CONFIG_PATH = os.environ.get('MONGO_MONITORING_CONFIG_FILE', '/etc/mongodb-monitoring.conf')
 
   def __init__(self):
     self._thisHost = commands.getoutput('hostname')
@@ -119,7 +119,7 @@ class MongoDBGraphiteMonitor(object):
     replicaMetrics['replication.lag_seconds'] = lag_seconds
     return replicaMetrics
 
-  def _gatherServerStatusMetrics(self):      
+  def _gatherServerStatusMetrics(self):
     serverMetrics = dict()
     serverStatus = self._connection.admin.command("serverStatus")
 
@@ -151,7 +151,7 @@ class MongoDBGraphiteMonitor(object):
     serverMetrics['mem.virtualMb'] = serverStatus['mem']['virtual']
     serverMetrics['mem.mapped'] = serverStatus['mem']['mapped']
     serverMetrics['mem.pageFaults'] = serverStatus['extra_info']['page_faults']
-        
+
     serverMetrics['flushing.lastMs'] = serverStatus['backgroundFlushing']['last_ms']
 
     for assertType, value in serverStatus['asserts'].iteritems():
@@ -179,21 +179,21 @@ class MongoDBGraphiteMonitor(object):
         # since it is the first
         pass
       return counts_per_second
-    
+
 
     query_performance_metrics = dict()
-    
+
     try:
       serverStatus = self._connection.admin.command("serverStatus")
       now = int(time.time())
 
       db = self._connection.local
       self._set_read_preference(db)
-      
+
       for query_type in 'insert', 'query', 'update', 'delete':
         current_counter_value = serverStatus['opcounters'][query_type]
 
-        last_count = db.nagios_check.find_one({'check': 'query_counts'})        
+        last_count = db.nagios_check.find_one({'check': 'query_counts'})
         if last_count:
           counts_per_second = query_rate (current_counter_value, now, last_count)
           db.nagios_check.update({u'_id': last_count['_id']},
@@ -201,10 +201,10 @@ class MongoDBGraphiteMonitor(object):
         else:
           counts_per_second = 0
           db.nagios_check.insert({'check': 'query_counts', 'data': {query_type: {'count': current_counter_value, 'ts': now}}})
-        
+
         query_performance_metrics["opcounters.%s.perSeconds" % query_type]=counts_per_second
     except Exception, e:
-      print "Couldn't retrieve/write query performance data:", e 
+      print "Couldn't retrieve/write query performance data:", e
 
     return query_performance_metrics
 
@@ -278,7 +278,7 @@ class MongoDBGraphiteMonitor(object):
     else:
       con = Connection(host=host, port=port, network_timeout=10)
     return con
-    
+
   def execute(self):
     self._carbonHost = self._args.graphiteHost
     self._carbonPort = int(self._args.graphitePort)
@@ -298,7 +298,7 @@ class MongoDBGraphiteMonitor(object):
     metrics.update(self._gatherDatabaseSpecificMetrics())
     metrics.update(self._gatherOpLogStats())
     metrics.update(self._gatherQueryPerformance())
-    
+
     # print (metrics)
 
     self._uploadToCarbon(metrics)
