@@ -11,7 +11,7 @@ import yaml
 
 
 class MongoDBGraphiteMonitor(object):
-  CONFIG_PATH = '/etc/mongodb-monitoring.conf'
+  CONFIG_PATH = os.environ['MONGO_MONITORING_CONFIG_FILE'] if 'MONGO_MONITORING_CONFIG_FILE' in os.environ else '/etc/mongodb-monitoring.conf'
 
   def __init__(self):
     self._thisHost = commands.getoutput('hostname')
