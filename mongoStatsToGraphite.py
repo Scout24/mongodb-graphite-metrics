@@ -239,6 +239,25 @@ class MongoDBGraphiteMonitor(object):
 
         return query_performance_metrics
 
+    def _gatherPageFaultRate (self):
+        server_metrics = dict()
+        delta_time = 1  # second
+        server_status = self._connection.admin.command("serverStatus")
+        try:
+            page_faults1 = server_status['extra_info']['page_faults']
+            time.sleep(delta_time)
+            page_faults2 = server_status['extra_info']['page_faults']
+
+            try:
+                server_metrics['mem.pageFaults.rate'] = (int(page_faults2) - int(page_faults1)) / delta_time
+            except KeyError:
+                print "WARNING - Can't get extra_info.page_faults counter from MongoDB"
+
+        except Exception, e:
+            print "Couldn't determine page fault rate:", e
+
+        return server_metrics
+    
     def _gatherDbStats(self, databaseName):
         dbStatsOfCurrentDb = dict()
 
@@ -334,6 +353,7 @@ class MongoDBGraphiteMonitor(object):
         metrics.update(self._gatherDatabaseSpecificMetrics())
         metrics.update(self._gatherOpLogStats())
         metrics.update(self._gatherQueryPerformance())
+        metrics.update(self._gatherPageFaultRate())
 
         # print (metrics)
 
