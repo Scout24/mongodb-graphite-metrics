@@ -249,7 +249,7 @@ class MongoDBGraphiteMonitor(object):
             page_faults2 = server_status['extra_info']['page_faults']
 
             try:
-                server_metrics['mem.pageFaults.rate'] = (int(page_faults2) - int(page_faults1)) / delta_time
+                server_metrics['mem.pageFault.rate'] = (int(page_faults2) - int(page_faults1)) / delta_time
             except KeyError:
                 print "WARNING - Can't get extra_info.page_faults counter from MongoDB"
 
@@ -355,7 +355,7 @@ class MongoDBGraphiteMonitor(object):
         metrics.update(self._gatherQueryPerformance())
         metrics.update(self._gatherPageFaultRate())
 
-        # print (metrics)
+        #print (metrics)
 
         self._uploadToCarbon(metrics)
 
