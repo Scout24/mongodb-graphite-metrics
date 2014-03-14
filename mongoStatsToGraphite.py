@@ -108,7 +108,11 @@ class MongoDBGraphiteMonitor(object):
 
     def _gatherReplicationMetrics(self):
         replicaMetrics = dict()
-        replStatus = self._connection.admin.command("replSetGetStatus")
+        try:
+            replStatus = self._connection.admin.command("replSetGetStatus")
+        except Exception, e:
+            print "Couldn't gather replication stats from mongo:", e
+            return replicaMetrics
 
         primaryOptime = 0
         for hostState in replStatus['members']:
@@ -132,7 +136,11 @@ class MongoDBGraphiteMonitor(object):
 
     def _gatherServerStatusMetrics(self):
         serverMetrics = dict()
-        serverStatus = self._connection.admin.command("serverStatus")
+        try:
+            serverStatus = self._connection.admin.command("serverStatus")
+        except Exception, e:
+            print "Couldn't gather server stats from mongo:", e
+            return serverMetrics
 
         if 'ratio' in serverStatus['globalLock']:
             serverMetrics['lock.ratio'] = '%.5f' % serverStatus[
@@ -236,8 +244,8 @@ class MongoDBGraphiteMonitor(object):
                     "opcounters.%s.perSeconds" % query_type] = counts_per_second
         except Exception, e:
             print "Couldn't retrieve/write query performance data:", e
-
-        return query_performance_metrics
+        finally:
+            return query_performance_metrics
 
     def _gatherPageFaultRate (self):
         server_metrics = dict()
@@ -255,8 +263,8 @@ class MongoDBGraphiteMonitor(object):
 
         except Exception, e:
             print "Couldn't determine page fault rate:", e
-
-        return server_metrics
+        finally:
+            return server_metrics
     
     def _gatherDbStats(self, databaseName):
         dbStatsOfCurrentDb = dict()
@@ -274,7 +282,11 @@ class MongoDBGraphiteMonitor(object):
     def _gatherDatabaseSpecificMetrics(self):
         dbMetrics = dict()
         for database in self._args.database:
-            dbMetrics.update(self._gatherDbStats(database))
+            try:
+                dbMetrics.update(self._gatherDbStats(database))
+            except Exception, e:
+                print "Couldn't gather database stats from mongo for database %(database):" % {
+                    'database':database}, e
 
         return dbMetrics
 
@@ -291,7 +303,7 @@ class MongoDBGraphiteMonitor(object):
             elif db.system.namespaces.find_one({"name": "local.oplog.$main"}):
                 oplog = "oplog.$main"
             else:
-                return
+                return oplogStats
 
             self._set_read_preference(self._connection['admin'])
             data = self._connection['local'].command(
@@ -322,6 +334,8 @@ class MongoDBGraphiteMonitor(object):
             oplogStats['oplog.usedStoragePercentage'] = oplog_used_storage
             oplogStats['oplog.hoursInOplog'] = hours_in_oplog
             oplogStats['oplog.approxHoursInOplog'] = approx_hours_in_oplog
+        except Exception, e:
+            print "Couldn't gather opLog stats from mongo", e
         finally:
             return oplogStats
 
