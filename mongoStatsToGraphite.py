@@ -116,13 +116,16 @@ class MongoDBGraphiteMonitor(object):
 
         primaryOptime = 0
         for hostState in replStatus['members']:
-            if hostState['stateStr'] == 'PRIMARY' and hostState['name'].lower().startswith(self._mongoHost):
+            is_primary = hostState['stateStr'] == 'PRIMARY'
+            hostname_matches = hostState['name'].lower().startswith(self._mongoHost)
+
+            if is_primary and hostname_matches:
                 lags = self._calculateLagTimes(
                     replStatus, hostState['optimeDate'])
                 replicaMetrics.update(lags)
-            if hostState['stateStr'] == 'PRIMARY':
+            if is_primary:
                 primaryOptime = hostState['optimeDate']
-            if hostState['name'].lower().startswith(self._mongoHost):
+            if hostname_matches:
                 thisOptime = hostState['optimeDate']
                 thisHostsState = hostState
 
