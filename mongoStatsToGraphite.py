@@ -101,6 +101,8 @@ class MongoDBGraphiteMonitor(object):
     def _calculateLagTimes(self, replStatus, primaryDate):
         lags = dict()
         for hostState in replStatus['members']:
+            if hostState['stateStr'] == 'ARBITER':
+                continue
             hostName = hostState['name'].lower().split('.')[0]
             lags[hostName + ".lag_seconds"] = self._calculateLagTime(
                 primaryDate, hostState['optimeDate'])
